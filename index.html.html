@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>BrainGym — Stroop Challenge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#12151a;
+    --surface:#1b1f27;
+    --surface-2:#232833;
+    --line:#2c3240;
+    --text:#eceef1;
+    --text-dim:#8b92a1;
+    --accent:#49d3c4;
+    --accent-dim:#2a5a55;
+    --danger:#e4483c;
+    --c-red:#e5493d;
+    --c-blue:#3e7cf2;
+    --c-green:#33b47a;
+    --c-yellow:#f0b90b;
+    --c-purple:#9a6bf0;
+    --radius:14px;
+    --font-display:'Space Grotesk', 'Avenir Next', 'Segoe UI', sans-serif;
+    --font-body:'IBM Plex Sans', 'Segoe UI', sans-serif;
+    --font-mono:'IBM Plex Mono', 'SF Mono', monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(circle at 15% -10%, #1c2733 0%, transparent 45%),
+      radial-gradient(circle at 110% 10%, #241a2e 0%, transparent 40%),
+      var(--bg);
+    color:var(--text);
+    font-family:var(--font-body);
+    min-height:100%;
+    display:flex;
+    justify-content:center;
+    -webkit-font-smoothing:antialiased;
+  }
+  #app{
+    width:100%;
+    max-width:460px;
+    min-height:100vh;
+    padding:28px 20px 40px;
+    display:flex;
+    flex-direction:column;
+    position:relative;
+  }
+  .wordmark{
+    font-family:var(--font-display);
+    font-weight:700;
+    font-size:26px;
+    letter-spacing:-0.02em;
+    display:flex;
+    align-items:baseline;
+    gap:8px;
+  }
+  .wordmark .dot{color:var(--accent);}
+  .tagline{color:var(--text-dim); font-size:13.5px; margin-top:2px;}
+  .status-pill{
+    display:inline-flex; align-items:center; gap:7px;
+    font-family:var(--font-mono); font-size:11.5px;
+    padding:5px 11px; border-radius:100px; border:1px solid var(--line);
+    color:var(--text-dim); margin-top:16px; width:fit-content;
+  }
+  .status-pill .dot{width:7px;height:7px;border-radius:50%;background:var(--text-dim);}
+  .status-pill.live{color:#8be8b0; border-color:#2f5240;}
+  .status-pill.live .dot{background:#3fd982; box-shadow:0 0 8px #3fd98299;}
+  .status-pill.closed{color:#e6a15a; border-color:#4a3520;}
+  .status-pill.closed .dot{background:#e6a15a;}
+
+  .card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:22px;
+    margin-top:18px;
+  }
+  h2{font-family:var(--font-display); font-size:18px; margin:0 0 4px; font-weight:700;}
+  p.hint{color:var(--text-dim); font-size:13.5px; line-height:1.5; margin:0 0 16px;}
+  label{font-size:12.5px; color:var(--text-dim); display:block; margin-bottom:6px;}
+  input[type=text], input[type=password]{
+    width:100%; background:var(--surface-2); border:1px solid var(--line);
+    color:var(--text); padding:12px 13px; border-radius:10px; font-size:15px;
+    font-family:var(--font-body);
+  }
+  input:focus{outline:none; border-color:var(--accent);}
+  button{
+    font-family:var(--font-body); font-weight:600; font-size:14.5px;
+    border-radius:10px; border:none; padding:13px 18px; cursor:pointer;
+    transition:transform .08s ease, opacity .15s ease;
+  }
+  button:active{transform:scale(0.98);}
+  button:disabled{opacity:.4; cursor:not-allowed;}
+  .btn-primary{background:var(--accent); color:#08211d; width:100%; margin-top:14px;}
+  .btn-ghost{background:transparent; color:var(--text); border:1px solid var(--line); width:100%; margin-top:10px;}
+  .btn-danger{background:transparent; color:var(--danger); border:1px solid #4a2320;}
+  .btn-small{padding:8px 12px; font-size:13px;}
+
+  .rules{list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:10px;}
+  .rules li{display:flex; gap:10px; font-size:13.5px; color:var(--text-dim); line-height:1.4;}
+  .rules li .n{font-family:var(--font-mono); color:var(--accent); flex-shrink:0;}
+
+  footer{margin-top:auto; padding-top:26px; display:flex; justify-content:space-between; align-items:center;}
+  .link-btn{background:none; border:none; color:var(--text-dim); font-size:12.5px; padding:4px; text-decoration:underline; text-underline-offset:3px;}
+
+  /* Leaderboard */
+  .lb-row{display:flex; align-items:center; gap:12px; padding:11px 0; border-bottom:1px solid var(--line);}
+  .lb-row:last-child{border-bottom:none;}
+  .lb-rank{font-family:var(--font-mono); font-size:14px; color:var(--text-dim); width:22px;}
+  .lb-rank.top1{color:#f0c94b;} .lb-rank.top2{color:#c9ccd4;} .lb-rank.top3{color:#c98a4b;}
+  .lb-name{flex:1; font-size:14.5px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .lb-meta{font-family:var(--font-mono); font-size:11px; color:var(--text-dim);}
+  .lb-score{font-family:var(--font-mono); font-weight:600; font-size:16px; color:var(--accent);}
+  .empty{color:var(--text-dim); font-size:13.5px; text-align:center; padding:20px 0;}
+
+  /* Game screen */
+  .game-wrap{display:flex; flex-direction:column; align-items:center; flex:1; text-align:center;}
+  .timer-ring{position:relative; width:88px; height:88px; margin:6px 0 22px;}
+  .timer-ring svg{transform:rotate(-90deg); width:100%; height:100%;}
+  .timer-ring circle{fill:none; stroke-width:6;}
+  .timer-ring .bg{stroke:var(--surface-2);}
+  .timer-ring .fg{stroke:var(--accent); stroke-linecap:round; transition:stroke-dashoffset 1s linear;}
+  .timer-num{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family:var(--font-mono); font-size:15px; font-weight:600;}
+  .stimulus-box{
+    width:100%; min-height:150px; display:flex; align-items:center; justify-content:center;
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); margin-bottom:22px;
+  }
+  .stimulus{font-family:var(--font-display); font-weight:700; font-size:52px; letter-spacing:0.01em;}
+  .answers{display:grid; grid-template-columns:1fr 1fr; gap:12px; width:100%;}
+  .swatch{
+    padding:20px 8px; border-radius:12px; border:2px solid transparent; color:#0b0e12;
+    font-family:var(--font-display); font-weight:700; font-size:15px; cursor:pointer;
+    transition:transform .06s ease, filter .1s ease;
+  }
+  .swatch:active{transform:scale(0.96);}
+  .swatch.correct-flash{border-color:#fff; box-shadow:0 0 0 3px rgba(255,255,255,.25);}
+  .swatch.wrong-flash{opacity:.5;}
+  .progress-line{display:flex; gap:14px; font-family:var(--font-mono); font-size:12px; color:var(--text-dim); margin-top:18px;}
+
+  .countdown-overlay{
+    position:fixed; inset:0; background:rgba(10,12,15,.92); display:flex; align-items:center; justify-content:center;
+    font-family:var(--font-display); font-size:90px; font-weight:700; color:var(--accent); z-index:50;
+  }
+
+  .score-hero{text-align:center; margin:14px 0 4px;}
+  .score-num{font-family:var(--font-mono); font-size:64px; font-weight:600; color:var(--accent); line-height:1;}
+  .score-label{color:var(--text-dim); font-size:12.5px; margin-top:6px;}
+  .stat-grid{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:20px;}
+  .stat-grid-4{grid-template-columns:1fr 1fr 1fr 1fr; gap:8px;}
+  .stat-grid-4 .stat{padding:10px 4px;}
+  .stat-grid-4 .v{font-size:14px;}
+  .stat{background:var(--surface-2); border-radius:10px; padding:12px 8px; text-align:center;}
+  .stat .v{font-family:var(--font-mono); font-size:17px; font-weight:600;}
+  .stat .l{font-size:10.5px; color:var(--text-dim); margin-top:3px;}
+
+  .qr-box{background:#fff; border-radius:12px; padding:14px; display:flex; align-items:center; justify-content:center; margin-top:12px;}
+  .qr-box img{width:100%; max-width:220px; display:block;}
+  .toggle-row{display:flex; align-items:center; justify-content:space-between; padding:14px 0; border-bottom:1px solid var(--line);}
+  .toggle-row:last-child{border-bottom:none;}
+  .switch{position:relative; width:44px; height:25px; background:var(--surface-2); border-radius:100px; border:1px solid var(--line); cursor:pointer; flex-shrink:0;}
+  .switch .knob{position:absolute; top:2px; left:2px; width:19px; height:19px; border-radius:50%; background:var(--text-dim); transition:all .18s ease;}
+  .switch.on{background:var(--accent-dim); border-color:var(--accent);}
+  .switch.on .knob{left:21px; background:var(--accent);}
+  .back-row{display:flex; align-items:center; gap:10px; margin-bottom:4px;}
+  .back-row button{background:none; border:none; color:var(--text-dim); padding:4px; font-size:13px; cursor:pointer;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+const STORE_STATE = 'braingym:gamestate';
+const STORE_LB = 'braingym:leaderboard';
+const ADMIN_CODE = 'gymhost';
+const GAME_SECONDS = 2 * 60;
+const TRIAL_TIMEOUT_MS = 4000;
+const MAX_QUESTIONS = 40;
+const COLORS = [
+  {name:'RED', hex:'var(--c-red)', raw:'#e5493d'},
+  {name:'BLUE', hex:'var(--c-blue)', raw:'#3e7cf2'},
+  {name:'GREEN', hex:'var(--c-green)', raw:'#33b47a'},
+  {name:'YELLOW', hex:'var(--c-yellow)', raw:'#f0b90b'},
+  {name:'PURPLE', hex:'var(--c-purple)', raw:'#9a6bf0'}
+];
+
+let view = 'home';
+let playerName = '';
+let session = { trials: [], startTime: 0, timeLeft: GAME_SECONDS, current: null, trialTimer: null, tickTimer: null, ended:false };
+let lastResult = null;
+let hasStorage = !!(window.storage && window.storage.get);
+let memFallback = { [STORE_STATE]: null, [STORE_LB]: [] };
+
+async function storeGet(key, shared){
+  if(!hasStorage) return memFallback[key] ?? null;
+  try{
+    const r = await window.storage.get(key, shared);
+    return r ? JSON.parse(r.value) : null;
+  }catch(e){ return null; }
+}
+async function storeSet(key, value, shared){
+  memFallback[key] = value;
+  if(!hasStorage) return;
+  try{ await window.storage.set(key, JSON.stringify(value), shared); }catch(e){}
+}
+
+async function getGameState(){
+  const s = await storeGet(STORE_STATE, true);
+  return s || { live:false };
+}
+async function getLeaderboard(){
+  const lb = await storeGet(STORE_LB, true);
+  return Array.isArray(lb) ? lb : [];
+}
+
+function render(){ const app = document.getElementById('app'); app.innerHTML=''; app.appendChild(screens[view]()); }
+function el(html){ const t=document.createElement('template'); t.innerHTML=html.trim(); return t.content.firstChild; }
+
+/* ---------- HOME ---------- */
+function homeScreen(){
+  const wrap = el(`
+    <div>
+      <div class="wordmark">Brain<span>Gym</span><span class="dot">.</span></div>
+      <div class="tagline">A fast 2-minute Stroop reaction challenge.</div>
+      <div id="status-pill"></div>
+      <div class="card">
+        <h2>How it works</h2>
+        <ul class="rules">
+          <li><span class="n">01</span> You'll see a color word printed in an ink color that may not match the word.</li>
+          <li><span class="n">02</span> Tap the swatch matching the <strong style="color:var(--text)">ink color</strong>, not the word.</li>
+          <li><span class="n">03</span> Up to 40 questions, 4 seconds each, 2 minutes max. Score blends accuracy, response speed, and how fast you finish.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h2>Enroll</h2>
+        <p class="hint" id="enroll-hint">Checking session status…</p>
+        <label>Your name</label>
+        <input type="text" id="name-input" placeholder="e.g. Priya" maxlength="24" />
+        <button class="btn-primary" id="join-btn" disabled>Join &amp; play</button>
+      </div>
+      <div class="card">
+        <h2>Leaderboard</h2>
+        <div id="lb-mount"><p class="empty">Loading…</p></div>
+      </div>
+      <footer>
+        <span style="font-size:11.5px; color:var(--text-dim)">Reaction time psychology demo</span>
+        <button class="link-btn" id="host-link">Host controls</button>
+      </footer>
+    </div>
+  `);
+  wrap.querySelector('#host-link').onclick = ()=>{ view='admin-login'; render(); };
+  wrap.querySelector('#join-btn').onclick = ()=>{
+    const val = wrap.querySelector('#name-input').value.trim();
+    if(!val) return;
+    playerName = val;
+    startCountdown();
+  };
+  (async ()=>{
+    const state = await getGameState();
+    const pillMount = wrap.querySelector('#status-pill');
+    const hint = wrap.querySelector('#enroll-hint');
+    const joinBtn = wrap.querySelector('#join-btn');
+    if(state.live){
+      pillMount.appendChild(el(`<div class="status-pill live"><span class="dot"></span>Game is live — enrolling now</div>`));
+      hint.textContent = 'Enter your name and start whenever you\'re ready.';
+      joinBtn.disabled = false;
+    } else {
+      pillMount.appendChild(el(`<div class="status-pill closed"><span class="dot"></span>Not launched yet</div>`));
+      hint.textContent = 'The host hasn\'t opened enrollment yet. Check back shortly.';
+      joinBtn.disabled = true;
+    }
+    const lb = await getLeaderboard();
+    wrap.querySelector('#lb-mount').replaceWith(renderLeaderboardList(lb, 5, 'lb-mount'));
+  })();
+  return wrap;
+}
+
+function renderLeaderboardList(lb, limit, id){
+  const sorted = [...lb].sort((a,b)=> b.score - a.score || (a.completionTime ?? 999) - (b.completionTime ?? 999) || a.avgRt - b.avgRt);
+  const shown = limit ? sorted.slice(0, limit) : sorted;
+  const box = el(`<div id="${id}"></div>`);
+  if(shown.length === 0){
+    box.appendChild(el(`<p class="empty">No scores yet — be the first to play.</p>`));
+    return box;
+  }
+  shown.forEach((r, i)=>{
+    const rankClass = i===0?'top1':i===1?'top2':i===2?'top3':'';
+    const timeStr = r.completionTime!=null ? fmtTime(r.completionTime) : '—';
+    box.appendChild(el(`
+      <div class="lb-row">
+        <div class="lb-rank ${rankClass}">${i+1}</div>
+        <div style="flex:1; min-width:0;">
+          <div class="lb-name">${escapeHtml(r.name)}</div>
+          <div class="lb-meta">${Math.round(r.accuracy*100)}% acc · ${(r.avgRt/1000).toFixed(2)}s avg · ${timeStr} total</div>
+        </div>
+        <div class="lb-score">${r.score}</div>
+      </div>
+    `));
+  });
+  return box;
+}
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ---------- COUNTDOWN + GAME ---------- */
+function startCountdown(){
+  view = 'countdown';
+  render();
+  let n = 3;
+  const overlay = document.querySelector('.countdown-overlay');
+  const tick = ()=>{
+    if(n === 0){ view='game'; initGame(); render(); return; }
+    overlay.textContent = n;
+    n--;
+    setTimeout(tick, 700);
+  };
+  tick();
+}
+function countdownScreen(){
+  return el(`<div class="countdown-overlay">3</div>`);
+}
+
+function initGame(){
+  session = { trials: [], timeLeft: GAME_SECONDS, current:null, ended:false, startTime: performance.now() };
+  session.tickTimer = setInterval(()=>{
+    session.timeLeft -= 1;
+    if(session.timeLeft <= 0){ endGame(); return; }
+    const el = document.getElementById('timer-num');
+    if(el) el.textContent = fmtTime(session.timeLeft);
+    const ring = document.querySelector('.timer-ring .fg');
+    if(ring) setRing(ring, session.timeLeft/GAME_SECONDS);
+  }, 1000);
+  nextTrial();
+}
+function fmtTime(s){ const m=Math.floor(s/60); const ss=s%60; return `${m}:${ss.toString().padStart(2,'0')}`; }
+function setRing(circle, frac){
+  const r = 40; const c = 2*Math.PI*r;
+  circle.style.strokeDasharray = c;
+  circle.style.strokeDashoffset = c * (1-frac);
+}
+
+function pickTrial(){
+  const word = COLORS[Math.floor(Math.random()*COLORS.length)];
+  const ink = COLORS[Math.floor(Math.random()*COLORS.length)];
+  return { word, ink, start: performance.now() };
+}
+function nextTrial(){
+  if(session.ended) return;
+  if(session.trials.length >= MAX_QUESTIONS){ endGame(); return; }
+  session.current = pickTrial();
+  clearTimeout(session.trialTimer);
+  renderGameBody();
+  session.trialTimer = setTimeout(()=>{
+    recordAnswer(null);
+  }, TRIAL_TIMEOUT_MS);
+}
+function recordAnswer(chosenName){
+  if(session.ended || !session.current) return;
+  const rt = performance.now() - session.current.start;
+  const correct = chosenName === session.current.ink.name;
+  session.trials.push({ correct, rt: Math.min(rt, TRIAL_TIMEOUT_MS) });
+  clearTimeout(session.trialTimer);
+  if(session.trials.length >= MAX_QUESTIONS){ endGame(); return; }
+  setTimeout(()=>{ if(!session.ended) nextTrial(); }, 120);
+}
+function endGame(){
+  session.ended = true;
+  clearInterval(session.tickTimer);
+  clearTimeout(session.trialTimer);
+  const total = session.trials.length;
+  const correct = session.trials.filter(t=>t.correct).length;
+  const accuracy = total ? correct/total : 0;
+  const correctRts = session.trials.filter(t=>t.correct).map(t=>t.rt);
+  const avgRt = correctRts.length ? correctRts.reduce((a,b)=>a+b,0)/correctRts.length : TRIAL_TIMEOUT_MS;
+  const completionTimeSec = Math.min(GAME_SECONDS, (performance.now() - session.startTime)/1000);
+  // Accuracy carries the most weight, then reaction speed, then how quickly the whole set was finished.
+  const accuracyPts = accuracy * 600;
+  const speedBonus = Math.max(0, Math.min(1, (TRIAL_TIMEOUT_MS - avgRt)/TRIAL_TIMEOUT_MS)) * 250;
+  const completionBonus = Math.max(0, Math.min(1, (GAME_SECONDS - completionTimeSec)/GAME_SECONDS)) * 150;
+  const score = Math.max(0, Math.round(accuracyPts + speedBonus + completionBonus));
+  lastResult = {
+    name: playerName, score, accuracy,
+    avgRt: Math.round(avgRt),
+    completionTime: Math.round(completionTimeSec),
+    correct, total, ts: Date.now()
+  };
+  submitScore(lastResult);
+  view = 'result';
+  render();
+}
+async function submitScore(entry){
+  const lb = await getLeaderboard();
+  lb.push(entry);
+  await storeSet(STORE_LB, lb, true);
+}
+
+
+function gameScreen(){
+  const wrap = el(`
+    <div class="game-wrap">
+      <div class="timer-ring">
+        <svg viewBox="0 0 96 96">
+          <circle class="bg" cx="48" cy="48" r="40"></circle>
+          <circle class="fg" cx="48" cy="48" r="40"></circle>
+        </svg>
+        <div class="timer-num" id="timer-num">${fmtTime(session.timeLeft)}</div>
+      </div>
+      <div class="stimulus-box"><div class="stimulus" id="stimulus-word"></div></div>
+      <div class="answers" id="answers-grid"></div>
+      <div class="progress-line" id="progress-line"></div>
+    </div>
+  `);
+  const ring = wrap.querySelector('.timer-ring .fg');
+  setTimeout(()=>setRing(ring, session.timeLeft/GAME_SECONDS), 30);
+  fillGameBody(wrap);
+  return wrap;
+}
+function renderGameBody(){
+  const stimEl = document.getElementById('stimulus-word');
+  const gridEl = document.getElementById('answers-grid');
+  const progEl = document.getElementById('progress-line');
+  if(!stimEl || !gridEl) return;
+  fillGameBodyDirect(stimEl, gridEl, progEl);
+}
+function fillGameBody(wrap){
+  fillGameBodyDirect(wrap.querySelector('#stimulus-word'), wrap.querySelector('#answers-grid'), wrap.querySelector('#progress-line'));
+}
+function fillGameBodyDirect(stimEl, gridEl, progEl){
+  const { word, ink } = session.current;
+  stimEl.textContent = word.name;
+  stimEl.style.color = ink.hex;
+  const shuffled = [...COLORS].sort(()=>Math.random()-0.5);
+  gridEl.innerHTML = '';
+  shuffled.forEach(c=>{
+    const btn = document.createElement('button');
+    btn.className = 'swatch';
+    btn.style.background = c.hex;
+    btn.textContent = c.name;
+    btn.onclick = ()=>{
+      btn.classList.add(c.name===ink.name ? 'correct-flash' : 'wrong-flash');
+      gridEl.querySelectorAll('button').forEach(b=>b.disabled=true);
+      recordAnswer(c.name);
+    };
+    gridEl.appendChild(btn);
+  });
+  if(progEl){
+    const correct = session.trials.filter(t=>t.correct).length;
+    progEl.innerHTML = `<span>Question ${session.trials.length+1}/${MAX_QUESTIONS}</span><span>${correct} correct</span>`;
+  }
+}
+
+/* ---------- RESULT ---------- */
+function resultScreen(){
+  const r = lastResult;
+  const wrap = el(`
+    <div>
+      <div class="wordmark">Brain<span>Gym</span><span class="dot">.</span></div>
+      <div class="score-hero">
+        <div class="score-num">${r.score}</div>
+        <div class="score-label">points · out of 1000</div>
+      </div>
+      <div class="stat-grid stat-grid-4">
+        <div class="stat"><div class="v">${Math.round(r.accuracy*100)}%</div><div class="l">Accuracy</div></div>
+        <div class="stat"><div class="v">${(r.avgRt/1000).toFixed(2)}s</div><div class="l">Avg. speed</div></div>
+        <div class="stat"><div class="v">${fmtTime(r.completionTime)}</div><div class="l">Total time</div></div>
+        <div class="stat"><div class="v">${r.correct}/${r.total}</div><div class="l">Correct</div></div>
+      </div>
+      <div class="card">
+        <h2>Leaderboard</h2>
+        <div id="lb-mount-2"><p class="empty">Loading…</p></div>
+      </div>
+      <button class="btn-primary" id="again-btn">Play again</button>
+      <button class="btn-ghost" id="home-btn">Back to home</button>
+    </div>
+  `);
+  wrap.querySelector('#again-btn').onclick = ()=>{ startCountdown(); };
+  wrap.querySelector('#home-btn').onclick = ()=>{ view='home'; render(); };
+  (async ()=>{
+    const lb = await getLeaderboard();
+    wrap.querySelector('#lb-mount-2').replaceWith(renderLeaderboardList(lb, 8, 'lb-mount-2'));
+  })();
+  return wrap;
+}
+
+/* ---------- ADMIN ---------- */
+function adminLoginScreen(){
+  const wrap = el(`
+    <div>
+      <div class="back-row"><button id="back">&larr; Back</button></div>
+      <div class="wordmark">Host<span class="dot">.</span></div>
+      <div class="tagline">Enter the host passcode to manage the session.</div>
+      <div class="card">
+        <label>Passcode</label>
+        <input type="password" id="pass-input" placeholder="••••••••" />
+        <p id="err" style="color:var(--danger); font-size:12.5px; margin:8px 0 0; display:none;">Incorrect passcode.</p>
+        <button class="btn-primary" id="enter-btn">Enter</button>
+      </div>
+    </div>
+  `);
+  wrap.querySelector('#back').onclick = ()=>{ view='home'; render(); };
+  const submit = ()=>{
+    const v = wrap.querySelector('#pass-input').value;
+    if(v === ADMIN_CODE){ view='admin'; render(); }
+    else { wrap.querySelector('#err').style.display='block'; }
+  };
+  wrap.querySelector('#enter-btn').onclick = submit;
+  wrap.querySelector('#pass-input').onkeydown = (e)=>{ if(e.key==='Enter') submit(); };
+  return wrap;
+}
+
+function adminScreen(){
+  const wrap = el(`
+    <div>
+      <div class="back-row"><button id="back">&larr; Back to home</button></div>
+      <div class="wordmark">Host controls<span class="dot">.</span></div>
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <h2 style="margin-bottom:2px;">Launch game</h2>
+            <p class="hint" style="margin:0;">Open enrollment so participants can join &amp; play.</p>
+          </div>
+          <div class="switch" id="live-switch"><div class="knob"></div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>QR enrollment</h2>
+        <p class="hint">Paste the link this site is published at to generate a scannable code for participants.</p>
+        <label>Published URL</label>
+        <input type="text" id="url-input" placeholder="https://your-published-link" />
+        <div class="qr-box" id="qr-box" style="display:none;"><img id="qr-img" /></div>
+      </div>
+      <div class="card">
+        <h2>Leaderboard (<span id="lb-count"></span>)</h2>
+        <div id="lb-mount-admin"><p class="empty">Loading…</p></div>
+        <button class="btn-danger" id="reset-btn" style="width:100%; margin-top:14px;">Erase leaderboard</button>
+      </div>
+    </div>
+  `);
+  wrap.querySelector('#back').onclick = ()=>{ view='home'; render(); };
+
+  const urlInput = wrap.querySelector('#url-input');
+  urlInput.oninput = ()=>{
+    const val = urlInput.value.trim();
+    const box = wrap.querySelector('#qr-box');
+    const img = wrap.querySelector('#qr-img');
+    if(val){
+      img.src = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(val)}`;
+      box.style.display='flex';
+    } else { box.style.display='none'; }
+  };
+
+  const sw = wrap.querySelector('#live-switch');
+  let currentLive = false;
+  sw.onclick = async ()=>{
+    currentLive = !currentLive;
+    sw.classList.toggle('on', currentLive);
+    await storeSet(STORE_STATE, { live: currentLive }, true);
+  };
+
+  wrap.querySelector('#reset-btn').onclick = async ()=>{
+    if(confirm('Erase all leaderboard scores? This cannot be undone.')){
+      await storeSet(STORE_LB, [], true);
+      const lb = await getLeaderboard();
+      wrap.querySelector('#lb-count').textContent = lb.length;
+      wrap.querySelector('#lb-mount-admin').replaceWith(renderLeaderboardList(lb, null, 'lb-mount-admin'));
+    }
+  };
+
+  (async ()=>{
+    const state = await getGameState();
+    currentLive = !!state.live;
+    sw.classList.toggle('on', currentLive);
+    const lb = await getLeaderboard();
+    wrap.querySelector('#lb-count').textContent = lb.length;
+    wrap.querySelector('#lb-mount-admin').replaceWith(renderLeaderboardList(lb, null, 'lb-mount-admin'));
+  })();
+
+  return wrap;
+}
+
+const screens = {
+  home: homeScreen,
+  countdown: countdownScreen,
+  game: gameScreen,
+  result: resultScreen,
+  'admin-login': adminLoginScreen,
+  admin: adminScreen
+};
+
+render();
+</script>
+</body>
+</html>
