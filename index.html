@@ -2,9 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BrainGym — Stroop Challenge</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
   :root{
@@ -109,9 +110,6 @@
     position:relative;
     overflow:hidden;
   }
-  .card:nth-of-type(1){animation-delay:.08s;}
-  .card:nth-of-type(2){animation-delay:.14s;}
-  .card:nth-of-type(3){animation-delay:.2s;}
   .card::before{
     content:''; position:absolute; top:0; left:0; right:0; height:2px;
     background:linear-gradient(90deg, transparent, var(--accent), transparent);
@@ -266,20 +264,64 @@ let view = 'home';
 let playerName = '';
 let session = { trials: [], startTime: 0, timeLeft: GAME_SECONDS, current: null, trialTimer: null, tickTimer: null, ended:false };
 let lastResult = null;
+// Served over http(s) => talk to the BrainGym host server, so every device on
+// the WiFi shares one leaderboard. Opened as a plain file => this browser only.
+let apiUp = (location.protocol === 'http:' || location.protocol === 'https:');
+const API_PATH = { [STORE_STATE]: '/api/state', [STORE_LB]: '/api/leaderboard' };
 let hasStorage = !!(window.storage && window.storage.get);
+const hasLocal = (()=>{ try{ const k='braingym:__t'; localStorage.setItem(k,'1'); localStorage.removeItem(k); return true; }catch(e){ return false; } })();
 let memFallback = { [STORE_STATE]: null, [STORE_LB]: [] };
 
+async function api(path, body){
+  const opt = body === undefined
+    ? { cache:'no-store' }
+    : { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) };
+  const r = await fetch(path, opt);
+  if(!r.ok) throw new Error('api ' + r.status);
+  return r.json();
+}
+function goOffline(){
+  apiUp = false;
+  if(document.getElementById('offline-note')) return;
+  const n = document.createElement('div');
+  n.id = 'offline-note';
+  n.textContent = 'Server se connection toot gaya - scores sirf is device pe save honge.';
+  n.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99;background:#4a2320;color:#ffb4ad;font-size:12.5px;text-align:center;padding:9px 12px;font-family:var(--font-body);';
+  document.body.appendChild(n);
+}
+
 async function storeGet(key, shared){
-  if(!hasStorage) return memFallback[key] ?? null;
-  try{
-    const r = await window.storage.get(key, shared);
-    return r ? JSON.parse(r.value) : null;
-  }catch(e){ return null; }
+  if(apiUp && API_PATH[key]){
+    try{ return await api(API_PATH[key]); }catch(e){ goOffline(); }
+  }
+  if(hasStorage){
+    try{
+      const r = await window.storage.get(key, shared);
+      if(r) return JSON.parse(r.value);
+    }catch(e){}
+  }
+  if(hasLocal){
+    try{
+      const v = localStorage.getItem(key);
+      if(v != null) return JSON.parse(v);
+    }catch(e){}
+  }
+  return memFallback[key] ?? null;
 }
 async function storeSet(key, value, shared){
   memFallback[key] = value;
-  if(!hasStorage) return;
-  try{ await window.storage.set(key, JSON.stringify(value), shared); }catch(e){}
+  if(apiUp){
+    try{
+      if(key === STORE_STATE){ await api('/api/state', { live: !!(value && value.live) }); return; }
+      if(key === STORE_LB && Array.isArray(value) && value.length === 0){ await api('/api/reset', {}); return; }
+    }catch(e){ goOffline(); }
+  }
+  if(hasLocal){
+    try{ localStorage.setItem(key, JSON.stringify(value)); }catch(e){}
+  }
+  if(hasStorage){
+    try{ await window.storage.set(key, JSON.stringify(value), shared); }catch(e){}
+  }
 }
 
 async function getGameState(){
@@ -291,7 +333,15 @@ async function getLeaderboard(){
   return Array.isArray(lb) ? lb : [];
 }
 
-function render(){ const app = document.getElementById('app'); app.innerHTML=''; app.appendChild(screens[view]()); }
+let pollTimer = null;
+function stopPoll(){ if(pollTimer){ clearInterval(pollTimer); pollTimer = null; } }
+function render(){
+  stopPoll();
+  const app = document.getElementById('app');
+  app.innerHTML='';
+  app.appendChild(screens[view]());
+  app.querySelectorAll('.card').forEach((c,i)=>{ c.style.animationDelay = (0.08 + i*0.06).toFixed(2)+'s'; });
+}
 function el(html){ const t=document.createElement('template'); t.innerHTML=html.trim(); return t.content.firstChild; }
 
 /* ---------- HOME ---------- */
@@ -333,11 +383,12 @@ function homeScreen(){
     playerName = val;
     startCountdown();
   };
-  (async ()=>{
+  const refresh = async ()=>{
     const state = await getGameState();
     const pillMount = wrap.querySelector('#status-pill');
     const hint = wrap.querySelector('#enroll-hint');
     const joinBtn = wrap.querySelector('#join-btn');
+    pillMount.innerHTML = '';
     if(state.live){
       pillMount.appendChild(el(`<div class="status-pill live"><span class="dot"></span>Game is live — enrolling now</div>`));
       hint.textContent = 'Enter your name and start whenever you\'re ready.';
@@ -348,13 +399,26 @@ function homeScreen(){
       joinBtn.disabled = true;
     }
     const lb = await getLeaderboard();
-    wrap.querySelector('#lb-mount').replaceWith(renderLeaderboardList(lb, 5, 'lb-mount'));
-  })();
+    const mount = wrap.querySelector('#lb-mount');
+    if(mount) mount.replaceWith(renderLeaderboardList(lb, 5, 'lb-mount'));
+  };
+  refresh();
+  pollTimer = setInterval(()=>{ if(view === 'home') refresh(); }, 3000);
   return wrap;
 }
 
+function rankCompare(a,b){
+  return b.score - a.score || (a.completionTime ?? 999) - (b.completionTime ?? 999) || a.avgRt - b.avgRt;
+}
+// One row per player: a repeat run only replaces their entry if it beats it.
 function sortLeaderboard(lb){
-  return [...lb].sort((a,b)=> b.score - a.score || (a.completionTime ?? 999) - (b.completionTime ?? 999) || a.avgRt - b.avgRt);
+  const best = new Map();
+  for(const r of lb){
+    const key = (r.name || '').trim().toLowerCase();
+    const prev = best.get(key);
+    if(!prev || rankCompare(r, prev) < 0) best.set(key, r);
+  }
+  return [...best.values()].sort(rankCompare);
 }
 function renderLeaderboardList(lb, limit, id){
   const sorted = sortLeaderboard(lb);
@@ -414,7 +478,9 @@ function burstConfetti(mount){
 
 
 /* ---------- COUNTDOWN + GAME ---------- */
-function startCountdown(){
+async function startCountdown(){
+  const state = await getGameState();
+  if(!state.live){ view='home'; render(); return; }
   view = 'countdown';
   render();
   let n = 3;
@@ -483,6 +549,7 @@ function recordAnswer(chosenName){
   setTimeout(()=>{ if(!session.ended) nextTrial(); }, 120);
 }
 function endGame(){
+  if(session.ended) return;
   session.ended = true;
   clearInterval(session.tickTimer);
   clearTimeout(session.trialTimer);
@@ -508,6 +575,9 @@ function endGame(){
   render();
 }
 async function submitScore(entry){
+  if(apiUp){
+    try{ await api('/api/score', entry); return; }catch(e){ goOffline(); }
+  }
   const lb = await getLeaderboard();
   lb.push(entry);
   await storeSet(STORE_LB, lb, true);
@@ -619,7 +689,15 @@ function resultScreen(){
       bannerMount.appendChild(el(`<div class="rank-banner bronze">🥉 3rd place — nice run!</div>`));
       burstConfetti(wrap.querySelector('#confetti-mount'));
     }
-    wrap.querySelector('#lb-mount-2').replaceWith(renderLeaderboardList(lb, 8, 'lb-mount-2'));
+    // Keep the result screen's board live too, so a player who has finished
+    // still watches later players land on it.
+    const refreshLb = async ()=>{
+      const cur = await getLeaderboard();
+      const mount = wrap.querySelector('#lb-mount-2');
+      if(mount) mount.replaceWith(renderLeaderboardList(cur, 8, 'lb-mount-2'));
+    };
+    await refreshLb();
+    pollTimer = setInterval(()=>{ if(view === 'result') refreshLb(); }, 3000);
   })();
   return wrap;
 }
@@ -666,8 +744,8 @@ function adminScreen(){
       </div>
       <div class="card">
         <h2>QR enrollment</h2>
-        <p class="hint">Paste the link this site is published at to generate a scannable code for participants.</p>
-        <label>Published URL</label>
+        <p class="hint">Participants isse scan karke join kar sakte hain. Sabko same WiFi pe hona chahiye.</p>
+        <label>Join link</label>
         <input type="text" id="url-input" placeholder="https://your-published-link" />
         <div class="qr-box" id="qr-box" style="display:none;"><img id="qr-img" /></div>
       </div>
@@ -681,19 +759,26 @@ function adminScreen(){
   wrap.querySelector('#back').onclick = ()=>{ view='home'; render(); };
 
   const urlInput = wrap.querySelector('#url-input');
+  let qrTimer = null;
   urlInput.oninput = ()=>{
-    const val = urlInput.value.trim();
-    const box = wrap.querySelector('#qr-box');
-    const img = wrap.querySelector('#qr-img');
-    if(val){
-      img.src = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(val)}`;
-      box.style.display='flex';
-    } else { box.style.display='none'; }
+    clearTimeout(qrTimer);
+    qrTimer = setTimeout(()=>{
+      const val = urlInput.value.trim();
+      const box = wrap.querySelector('#qr-box');
+      const img = wrap.querySelector('#qr-img');
+      if(val){
+        img.src = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(val)}`;
+        box.style.display='flex';
+      } else { box.style.display='none'; }
+    }, 400);
   };
 
   const sw = wrap.querySelector('#live-switch');
   let currentLive = false;
+  let liveLoaded = false;
+  sw.style.opacity = '.5';
   sw.onclick = async ()=>{
+    if(!liveLoaded) return;
     currentLive = !currentLive;
     sw.classList.toggle('on', currentLive);
     await storeSet(STORE_STATE, { live: currentLive }, true);
@@ -709,11 +794,19 @@ function adminScreen(){
   };
 
   (async ()=>{
+    if(apiUp){
+      try{
+        const info = await api('/api/info');
+        if(info && info.url){ urlInput.value = info.url; urlInput.dispatchEvent(new Event('input')); }
+      }catch(e){}
+    }
     const state = await getGameState();
     currentLive = !!state.live;
     sw.classList.toggle('on', currentLive);
+    liveLoaded = true;
+    sw.style.opacity = '';
     const lb = await getLeaderboard();
-    wrap.querySelector('#lb-count').textContent = lb.length;
+    wrap.querySelector('#lb-count').textContent = sortLeaderboard(lb).length;
     wrap.querySelector('#lb-mount-admin').replaceWith(renderLeaderboardList(lb, null, 'lb-mount-admin'));
   })();
 
